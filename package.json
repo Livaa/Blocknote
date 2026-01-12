@@ -1,0 +1,33 @@
+{
+    "name": "blocknote",
+    "version": "0.1.0",
+    "description": "On-chain file storage and real-time data streaming on Algorand",
+    "main": "app.js",
+    "type": "module",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },        
+    "keywords": [
+        
+        "algorand",
+        "blockchain",
+        "storage",
+        "file",
+        "data",
+        "streaming",
+        "on-chain",
+        "decentralized",
+        "web3"
+    ],
+    "author": "Thomas Collet <Liva>",
+    "license": "MIT",
+    "dependencies": {
+        "@algorandfoundation/xhd-wallet-api": "^1.0.3",
+        "algosdk": "^3.3.1",
+        "better-sqlite3": "^12.2.0",
+        "lz-string": "^1.5.0",
+        "lz4-napi": "^2.8.0",
+        "pako": "^2.1.0",
+        "snappy": "^7.3.0"
+    }
+}
