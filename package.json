@@ -3,8 +3,13 @@
     "version": "0.1.0",
     "description": "On-chain file storage and real-time data streaming on Algorand",
     "main": "app.js",
+    "exports": {
+        
+        ".": "./app.js"
+    },
     "type": "module",
     "scripts": {
+        
       "test": "echo \"Error: no test specified\" && exit 1"
     },        
     "keywords": [
@@ -19,9 +24,20 @@
         "decentralized",
         "web3"
     ],
+    "repository": {
+        
+        "type": "git",
+        "url": "https://github.com/livaa/Blocknote.git"
+    },
+    "homepage": "https://github.com/livaa/Blocknote",
+    "bugs": {
+        
+      "url": "https://github.com/livaa/Blocknote/issues"
+    },
     "author": "Thomas Collet <Liva>",
     "license": "MIT",
     "dependencies": {
+        
         "@algorandfoundation/xhd-wallet-api": "^1.0.3",
         "algosdk": "^3.3.1",
         "better-sqlite3": "^12.2.0",
