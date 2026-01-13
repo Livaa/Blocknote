@@ -1,11 +1,21 @@
 {
     "name": "blocknote",
     "version": "0.1.0",
+    "repository": {
+        
+        "type": "git",
+        "url": "https://github.com/livaa/Blocknote.git"
+    },
+    "homepage": "https://github.com/livaa/Blocknote",
+    "bugs": {
+        
+      "url": "https://github.com/livaa/Blocknote/issues"
+    },
     "description": "On-chain file storage and real-time data streaming on Algorand",
-    "main": "app.js",
+    "main": "./src/app.js",
     "exports": {
         
-        ".": "./app.js"
+        ".": "./src/app.js"
     },
     "type": "module",
     "scripts": {
@@ -23,17 +33,7 @@
         "on-chain",
         "decentralized",
         "web3"
-    ],
-    "repository": {
-        
-        "type": "git",
-        "url": "https://github.com/livaa/Blocknote.git"
-    },
-    "homepage": "https://github.com/livaa/Blocknote",
-    "bugs": {
-        
-      "url": "https://github.com/livaa/Blocknote/issues"
-    },
+    ],    
     "author": "Thomas Collet <Liva>",
     "license": "MIT",
     "dependencies": {
