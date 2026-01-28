@@ -123,6 +123,8 @@ export class BlocknoteReader {
      * 
      * @param {Uint8Array|Buffer} content - The encrypted content.
      * @param {Object} payload - Metadata containing encryption info (iv, tag, salt).
+     * @param {string} aes_key - The aes_key to decrypt the content
+     * @param {string} password - The password to decrypt the content
      * @returns {Promise<Uint8Array>} - Decrypted content.
      */
     async decrypt(content, payload, aes_key, password){
@@ -170,7 +172,7 @@ export class BlocknoteReader {
     * Decrypts the title from the payload if it is encrypted.
     *
     * @param {Object} payload - The full payload object containing the title and optional encryption details.
-    * @param {Buffer|string} aes_key - The AES key to use for decryption.
+    * @param {string} aes_key - The AES key to use for decryption.
     * @param {string} password - The password used for key derivation (if applicable).
     * @returns {Promise<string>} - The decrypted title, or the original title if not encrypted.
     */

@@ -1,13 +1,11 @@
-import {Blocknote}  from "../writers/blocknote.js" 
-import {BlocknoteReader} from "../readers/blocknote-reader.js";
-import * as Chain   from "../chain/chain.js";
-import * as Algosdk from "algosdk";
-import * as Crypto  from "../crypto/crypto.js";
-import * as Db      from "../db/db.js";
-import * as Search  from "../search/search.js";
-import {randomUUID} from 'crypto';
-
-Db.connect();
+import {Blocknote}          from "../writers/blocknote.js" 
+import {BlocknoteReader}    from "../readers/blocknote-reader.js";
+import * as Chain           from "../chain/chain.js";
+import * as Algosdk         from "algosdk";
+import * as Crypto          from "../crypto/crypto.js";
+import * as Db              from "../db/db.js";
+import * as Search          from "../search/search.js";
+import {randomUUID}         from 'crypto';
 
 const algod     = new Algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_URL, process.env.ALGOD_PORT);
 const indexer   = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
@@ -111,7 +109,7 @@ export function prepareBootstrapTransaction(
  * @param {string} user_address - Address of the user funding the bootstrap.
  * @param {Buffer|string} raw_content - Content to store.
  * @param {object} [options={}] - Options such as compression, revision_of, ...
- * @returns {Promise<{output:object, transaction:string}>} 
+ * @returns @returns {Promise<{output:object, key:string, transaction:string}>}
  *          Bootstrap transaction details including simulated fees and encoded transaction.
  */
 async function getBootstrapTransaction(

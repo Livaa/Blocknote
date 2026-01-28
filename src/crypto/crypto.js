@@ -1,7 +1,6 @@
 import * as Crypto from 'crypto';
 
 const PRIVATE_KEY_AES   = process.env.PRIVATE_KEY_AES;
-//const derived_keys      = deriveKeys();
    
    
 /**
