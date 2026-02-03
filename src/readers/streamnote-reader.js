@@ -11,7 +11,7 @@ const indexer   = new algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.IND
 export class StreamnoteReader{
            
     
-    constructor(payload_transaction_id, properties = {}) {        
+    constructor(payload_transaction_id) {        
         
         /**  
         * ID of the payload transaction containing metadata.   
@@ -25,28 +25,28 @@ export class StreamnoteReader{
         * 
         * @type {string|null}
         */
-        this.aes_key = properties?.aes_key;
+        this.aes_key = null;
         
         /**
         * Password used to derive AES key.
         * 
         * @type {string|null}
         */
-        this.password = properties?.password;
+        this.password = null;
         
         /**
         * Callback triggered when a chunk of data is emitted.
         * 
         * @type {Function}
         */
-        this.onData = properties?.onData;
+        this.onData = null;
         
         /**
         * Logs callback.
         * 
         * @type {Function}
         */
-        this.onLog = properties?.onLog;
+        this.onLog = null;
                 
         /** 
         * Metadata extracted from the initial payload transaction.    
@@ -118,7 +118,7 @@ export class StreamnoteReader{
         
         return this.payload;
     }
-    
+           
     
     /**
     * Retrieves the metadata transaction from indexer if not done yet.
@@ -131,9 +131,10 @@ export class StreamnoteReader{
         if( !this.payload ){
             
             const payload_transaction   = await indexer.lookupTransactionByID(this.payload_transaction_id).do();            
-            this.payload                = JSON.parse(Buffer.from(transaction.transaction.note, "base64"));
+            this.payload                = JSON.parse(Buffer.from(payload_transaction.transaction.note, "base64"));
             this.sender                 = payload_transaction.transaction.sender;
-            this.receiver               = payload_transaction.transaction.paymentTransaction.receiver;                  
+            this.receiver               = payload_transaction.transaction.paymentTransaction.receiver;  
+            this.youngest_block         = payload_transaction.transaction.confirmedRound - BigInt(10);            
         } 
     }
     
@@ -145,13 +146,10 @@ export class StreamnoteReader{
     * @returns {Promise<Uint8Array>} Full content of the stream so far.
     */
     async getPreviousData(){
-        
-        if(!this.payload){
-            
-            await this.retrievePayload();
-        }
-      
-        const get_all_transactions = await Search.getAllStreamedTransactions(this.sender, this.receiver);                                    
+
+        await this.retrievePayload();
+
+        const get_all_transactions = await Search.getAllStreamedTransactions(this.sender, this.receiver, null, this.payload_transaction_id);                                    
   
         await this.updateContentChunks(get_all_transactions);
 
@@ -164,18 +162,27 @@ export class StreamnoteReader{
      * 
      * @returns {Promise<void>}
      */
-    async start(){
+    async start(options = {}){
  
-        if( !this.payload ){
+        await this.retrievePayload();          
+               
+        this.aes_key    = options?.aes_key;               
+        this.password   = options?.password;               
+        this.onData     = options?.onData;                
+        this.onLog      = options?.onLog;
+              
+        if(options?.getPreviousData){
             
-            await this.retrievePayload();          
-        }    
-    
+            const previous_data = await this.getPreviousData();
+            
+            options.getPreviousData(previous_data);
+        }
+        
         // If getPreviousData() was called before, there is already a seek.
         // else, the first seek must be the last transaction.
         if( !this.consolidate_seek ){
                                       
-            const last_transaction = await this.getLastReceivedTransaction(this.sender, this.receiver);
+            const last_transaction = await Search.getLastReceivedTransaction(this.sender, this.receiver, this.payload_transaction_id);
             
             // If no transaction was sent yet, retries in few seconds.
             if( !last_transaction ){
@@ -265,7 +272,7 @@ export class StreamnoteReader{
 
                 To handle this, we query starting from (youngest_block - 10), 
                 roughly a 30s window. This buffer gives the indexer time to 
-                fully register new transactions and ensures we don’t miss 
+                fully register new transactions and ensures we don't miss 
                 any delayed ones from previous blocks.            
             */
            
@@ -273,7 +280,7 @@ export class StreamnoteReader{
 
             this.log("Checking for new incoming txns starting from block: " + min_round);
 
-            const get_all_transactions = Search.getAllStreamedTransactions(sender, receiver, min_round);
+            const get_all_transactions = await Search.getAllStreamedTransactions(sender, receiver, min_round, this.payload_transaction_id);
 
             if (get_all_transactions.length > 0) {
                 
@@ -304,7 +311,7 @@ export class StreamnoteReader{
         if(this.content_chunks.size === 0){                       
 
             // If they are no new transactions, maybe the stream is over.
-            this.checkIfStreamIsOver(this.receiver);  
+            this.updateStateIfStreamIsOver(this.receiver);              
                              
             return new Uint8Array;
         }
@@ -370,17 +377,31 @@ export class StreamnoteReader{
         
 
     /**
-    * Checks if the stream has ended by querying a special stop-signal transaction.
+    * Checks if the stream has ended and updates this.stream_is_over accordingly.
     * 
     * @param {string} receiver
     * @returns {Promise<void>}
     */
-    async checkIfStreamIsOver(receiver) {
+    async updateStateIfStreamIsOver(receiver) { 
    
         this.stream_is_over = await Search.isStreamOver(receiver);
     } 
     
+    
+    /**
+    * Allow external calls to check if the stream has ended.
+    * 
+    * @returns {Promise<boolean>}
+    */
+    async isOver(){
         
+        await this.retrievePayload();
+        
+        const is_over = await Search.isStreamOver(this.receiver);
+        
+        return is_over;
+    }
+       
     
     /**    
      * Handles optional AES decryption and compression decoding of a single chunk.

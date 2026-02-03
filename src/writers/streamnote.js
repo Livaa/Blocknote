@@ -13,9 +13,9 @@ import * as Crypto      from "../crypto/crypto.js";
 export class Streamnote extends Blocknote {
 
 
-    constructor(properties) {
+    constructor(sender_mnemonic, options = {}) {
        
-        super(properties);
+        super(sender_mnemonic, options);
 
         /**
         * Whether it's the first run.
@@ -39,7 +39,7 @@ export class Streamnote extends Blocknote {
         * Timeout in milliseconds before forcing send of partial content.
         * @type {number}
         */
-        this.note_max_size_not_reached_timeout = 15000;
+        this.note_size_not_reached_timeout = 10000;
         
         /**
         * Current content buffer to be compressed and sent.
@@ -47,6 +47,10 @@ export class Streamnote extends Blocknote {
         */
         this.content = "";
         
+        /**
+        * Chunk sequence number for ordering and encryption derivation.
+        * @type {number}
+        */
         this.counter = 0;
         
         /**
@@ -55,8 +59,7 @@ export class Streamnote extends Blocknote {
         * @type {Uint8Array|null}
         */
         this.encryption_salt = null;
-        
-        this.mutable = false;
+
         
         /**
         * Flag to request stop.
@@ -98,19 +101,7 @@ export class Streamnote extends Blocknote {
         * Logging callback for debug messages.
         * @type {(message: any) => void|null}
         */
-        this.onLog = null;
-        
-        /**
-        * Callback fired once the stream is finalized.
-        * @type {(result: Object) => void|null}
-        */
-        this.onFinish = null;
-
-        /**
-        * Stores initial constructor properties for later processing.
-        * @type {Object}
-        */
-        this.constructor_properties = properties;       
+        this.onLog = null;     
     }
     
     
@@ -126,36 +117,28 @@ export class Streamnote extends Blocknote {
             
             this.compression = await getCompression(compression); 
         }
-        else if(typeof compression === "object" && compression?.name && compression?.params){
+        else if(typeof compression === "object"){
             
             this.compression = await getCompression(compression.name); 
             
-            this.compression.setParams(compression.params);
+            if(compression?.params){
+                
+                this.compression.setParams(compression.params);
+            }
         }     
     } 
-    
-    
-    /**
-    * Set the timeout (in milliseconds) before sending partial content.
-    * 
-    * @param {number} value
-    */
-    setNoteMaxSizeNotReachedTimeout(value){
-        
-        this.note_max_size_not_reached_timeout = value
-    }
-    
+
     
     /**
-    * Apply and validate supported properties (sender, title, compression, encryption, callbacks).
-    * Unsupported properties are ignored.
+    * Apply and validate supported options (sender, title, compression, encryption, callbacks).
+    * Unsupported options are ignored.
     *
-    * @param {Object} properties - User-specified configuration object.
+    * @param {Object} options - User-specified configuration object.
     * @returns {Promise<void>}
     */
-    async prepareProperties(properties){
+    async prepareOptions(options){
         
-        const allowed_properties = [
+        const allowed_options = [
             
             "sender", 
             "compression",
@@ -163,27 +146,28 @@ export class Streamnote extends Blocknote {
             "title", 
             "aes_key",             
             "password",
+            "encrypt_title",
+            "note_size_not_reached_timeout",
             "getPayloadTransactionId",
             "onLog",
             "onFinish",
             "onError"
         ];
         
-        for(const property in properties){
+        for(const option in options){
             
-            if( !allowed_properties.includes(property) ){
+            if( !allowed_options.includes(option) ){
                 
                 continue;
             }
             
-            const value = properties[property];
+            const value = options[option];
             
-            switch(property){
+            switch(option){
                 
-                case "sender":      this.setSenderFromMnemonic(value); break;
-                case "title":       this.setTitle(value); break;           
+                case "sender":      this.setSenderFromMnemonic(value); break;                    
                 case "compression": await this.setCompression(value); break;               
-                default:            this[property] = value;
+                default:            this[option] = value;
             }           
         }
     }
@@ -199,16 +183,16 @@ export class Streamnote extends Blocknote {
     * @returns {Promise<void>}
     * @throws {Error} If sender account is missing.
     */
-    async save(raw_content) {                
-                            
+    async send(raw_content) {                
+               
         if( !this.stop_requested ){
                         
             this.content += raw_content;        
         }
-        
+      
         if(this.first_run){
             
-            await this.prepareProperties(this.constructor_properties);
+            await this.prepareOptions(this.constructor_options);
             
             this.first_run = false;
             
@@ -234,8 +218,7 @@ export class Streamnote extends Blocknote {
             
             // Prepare the payload
             this.payload = {
-                
-                version:    this.version,
+
                 title:      this.title,                                               
                 type:       "stream",
                 mime:       this.mime
@@ -260,7 +243,12 @@ export class Streamnote extends Blocknote {
                 this.iv         = Crypto.randomBytes(16);
                 this.payload.iv = this.iv.toString("base64");           
             }     
-       
+              
+            if(this.aes_key && this.encrypt_title === true){
+                
+                this.encryptTitle();
+            }            
+            
             // Build & send payload transaction.
             const suggested_params          = await Chain.getSuggestedParams();
             const payload_transaction       = await Chain.buildPayloadTransaction(suggested_params, this.sender, this.receiver, this.payload);            
@@ -279,7 +267,7 @@ export class Streamnote extends Blocknote {
                 this.getPayloadTransactionId(payload_transaction.id);
             }
 
-            this.saveTransactionCosts(payload_transaction);
+            //this.saveTransactionCosts(payload_transaction.txn);
             //this.startTransactionsQueue();
             this.start();                          
         }                                                
@@ -377,7 +365,7 @@ export class Streamnote extends Blocknote {
                 
                 const same_hash_since = Date.now() - this.ts_same_hash;
 
-                if(same_hash_since > this.note_max_size_not_reached_timeout){
+                if(same_hash_since > this.note_size_not_reached_timeout){
 
                     this.content                    = "";
                     this.extra_padding              = 0;                    
@@ -465,7 +453,7 @@ export class Streamnote extends Blocknote {
            
                 for(const transaction of transactions_to_send){
 
-                    this.saveTransactionCosts(transaction);
+                   // this.saveTransactionCosts(transaction);
                 }            
             }
             
@@ -487,7 +475,7 @@ export class Streamnote extends Blocknote {
         const close_to_remainder_transaction        = await Chain.buildTransaction(suggested_params, this.sender, this.receiver, "stop", true, false);
         const send_close_to_remainder_transaction   = await this.sendTransactions([close_to_remainder_transaction.txn]);      
         
-        this.saveTransactionCosts(close_to_remainder_transaction);
+        //this.saveTransactionCosts(close_to_remainder_transaction.txn);
         
         if(this.onFinish){
 
@@ -498,7 +486,7 @@ export class Streamnote extends Blocknote {
     
     /**
     * Compress content and prepend the counter.
-    * Optionally encrypts using AES-CTR with a derived IV.
+    * If required, encrypts using AES-CTR with a derived IV.
     *
     * @param {string} content - Raw content to compress.
     * @param {number} counter - Chunk sequence number.
@@ -506,13 +494,13 @@ export class Streamnote extends Blocknote {
     */
     async compress(content, counter){
  
-        let compress  = await this.compression.compress(content); 
+        let compress = await this.compression.compress(content); 
                 
         if(this.aes_key){
             
             // Determine the derivation seed for encryption:
-            // Password mode: derive per-chunk IV from (salt + counter).
-            // Raw AES key mode: derive per-chunk IV from (iv + counter).
+            // - Password mode: derive per-chunk IV from (salt + counter).
+            // - Raw AES key mode: derive per-chunk IV from (iv + counter).
             // In both cases, the final iv for aes-ctr is deterministically derived from this seed and the chunk counter.
             const seed  = this.encryption_salt ?? this.iv;
             compress    = Crypto.encryptWithDerivation(this.aes_key, compress, counter, seed);
@@ -553,6 +541,7 @@ export class Streamnote extends Blocknote {
         this.content            = "";
         this.extra_padding      = 0;      
         this.result.end         = Date.now();
+        this.result.duration    = this.result.end - this.result.start;
         this.result.payload     = this.payload;                        
         this.is_finalized       = true;                
     }

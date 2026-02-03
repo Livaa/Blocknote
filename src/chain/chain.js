@@ -1,9 +1,8 @@
 import algosdk                              from 'algosdk';
 import {fromSeed, KeyContext, XHDWalletAPI} from '@algorandfoundation/xhd-wallet-api';
 
-const algod     = new algosdk.Algodv2("", process.env.ALGOD_URL , "");
-const indexer   = new algosdk.Indexer('', process.env.INDEXER_URL,'');
-
+const algod     = new Algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_URL, process.env.ALGOD_PORT);
+const indexer   = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
 
 /**
  * Alias for `algosdk.generateAccount()`.

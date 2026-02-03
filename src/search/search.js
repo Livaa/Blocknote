@@ -7,12 +7,11 @@ const indexer = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEX
 
 /**
 * Fetches all payment transactions where the given address is the receiver.
-* Paginates through indexer results until no `next_token` remains.
 * 
 * @param {string} sender - Sender's account address.
 * @param {string} receiver - Receiver's account address.
 * @param {string} payload_transaction_id - The payload transaction ID to exclude from results.
-* @returns {Promise<object[]>} Array of Algorand transaction objects.
+* @returns {Promise<object[]>} Array of transaction objects.
 */
 export async function getAllReceivedTransactions(sender, receiver, payload_transaction_id) {
 
@@ -101,17 +100,14 @@ export async function getLastReceivedTransaction(sender, receiver, payload_trans
 
 
 /**
-* Retrieves all revisions associated with a payload transaction.
+* Retrieves a list of payload_id that represent all the revisions.
 * 
 * @param {string} payload_id - The payload transaction ID.
-* @returns {Promise<string[]>} Array of revision IDs, latest first.
+* @returns {Promise<string[]>} Array of payload_id, latest first.
 */
 export async function getRevisionsPayloads(payload_id){
-
-    let res         = null;
-    let next_token  = null;
-    let counter     = 0;
-    let stop        = false;
+    
+    let next_token  = null;   
     const revisions = [];
     
     const payload_transaction   = await indexer.lookupTransactionByID(payload_id).do();
@@ -130,7 +126,7 @@ export async function getRevisionsPayloads(payload_id){
 
         for(const transaction of query.transactions){
 
-            const revision_id  = transaction.sender === sender ? this.getRevisionPayloadTransactionId(transaction) : null;     
+            const revision_id  = transaction.sender === sender ? getRevisionPayloadTransactionId(transaction) : null;     
 
             if(revision_id){
 
@@ -156,7 +152,7 @@ export async function getRevisionsPayloads(payload_id){
 
 
 /**
-* Extracts the revision ID from a transaction note.
+* Extracts the revision's payload_id from a transaction note.
 * 
 * @param {object} transaction - Algorand transaction object.
 * @returns {string|null} Revision ID if valid, otherwise null.
@@ -199,9 +195,10 @@ export function getRevisionPayloadTransactionId(transaction){
 * @param {string} sender - Sender's account address.
 * @param {string} receiver - Receiver's account address.
 * @param {bigint|null} [min_round=null] - Optional minimum round to start fetching from.
+* @param {string} payload_id - The payload id to ignore from the results.
 * @returns {Promise<object[]>} Array of Algorand transaction objects.
 */
-export async function getAllStreamedTransactions(sender, receiver, min_round = null) {
+export async function getAllStreamedTransactions(sender, receiver, min_round = null, payload_id) {
 
     let res = [];
     let next_token = null;
@@ -223,7 +220,7 @@ export async function getAllStreamedTransactions(sender, receiver, min_round = n
         const process_query = await query.do();       
         const filtered      = process_query.transactions.filter(
 
-            txn => txn.sender === sender && txn.id !== this.payload_transaction_id
+            txn => txn.sender === sender && txn.id !== payload_id
         );
 
         res.push(...filtered);
@@ -261,11 +258,11 @@ export async function isStreamOver(receiver) {
             .limit(1000)
             .nextToken(next_token)
             .do();                                                         
-
+        
         const filtered = query.transactions.filter(
 
             transaction =>  transaction.sender === receiver 
-                            && Buffer.from(transaction.note, "base64") === "stop"
+                            && Buffer.from(transaction.note, "base64").toString() === "stop"
         );
 
         if(filtered[0]){

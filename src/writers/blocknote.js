@@ -7,12 +7,7 @@ export class Blocknote {
 
 
     constructor(sender_mnemonic, options = {}) {
-  
-        /**
-        * Blocknote version identifier.
-        * @type {number}
-        */
-        this.version = 0.1;
+
         
         /**
         * Receiver address where data chunks and the metadata (payload) transaction are sent.
@@ -289,6 +284,21 @@ export class Blocknote {
     
     
     /**
+    * Encrypts the title and saves the result into the payload.
+    */
+    encryptTitle(){
+        
+        const encrypt_title = Crypto.encrypt(this.title, this.aes_key);   
+        this.payload.title  = {
+
+            iv:     encrypt_title.iv.toString("base64"),
+            tag:    encrypt_title.tag.toString("base64"),
+            data:   encrypt_title.data.toString("base64")
+        }
+    }
+    
+    
+    /**
     * Save content to the blockchain.
     * 
     * @param {Uint8Array} raw_content - The raw uncompressed content.
@@ -299,7 +309,7 @@ export class Blocknote {
                     
         if ( !raw_content ){
             
-            return;
+            return null;
         }
         
         await this.prepareOptions(this.constructor_options);
@@ -312,7 +322,7 @@ export class Blocknote {
         // Assert revision
         if(this.revision_of){
             
-            this.revised_payload_transaction = await Chain.getTransactionById(this.revision_of);        
+            this.revised_payload_transaction = await Chain.getTransactionById(this.revision_of);                   
 
             if(this.revised_payload_transaction.sender !== Chain.encodeAddress(this.sender.addr.publicKey)){
                 
@@ -341,7 +351,6 @@ export class Blocknote {
         // Build the payload
         this.payload = {
 
-            version:    this.version,
             title:      this.title,
             mime:       this.mime,
             size:       raw_content.length,
@@ -393,13 +402,7 @@ export class Blocknote {
             
             if(this.encrypt_title){
                 
-                const encrypt_title = Crypto.encrypt(this.title, this.aes_key);   
-                //this.payload.title  = Buffer.from(JSON.stringify(encrypt_title)).toString("base64");
-                this.payload.title = {
-                    iv: encrypt_title.iv.toString("base64"),
-                    tag  :    encrypt_title.tag.toString("base64"),
-                    data: encrypt_title.data.toString("base64")
-                }
+                this.encryptTitle();
             }
         }                                 
         
@@ -407,7 +410,7 @@ export class Blocknote {
         
         return this.result;
     }
-
+    
     
     /**
     * Splits content into chunks, builds transactions, sends them in batches,
@@ -418,7 +421,6 @@ export class Blocknote {
     async start() {
                 
         const transactions      = [];    
-        const simulation_transactions = [];
         const suggested_params  = await Chain.getSuggestedParams();
         let counter             = 0;
         
@@ -463,7 +465,6 @@ export class Blocknote {
         
         // Put into the payload the number of data transactions
         this.payload.txns = transactions.length;                                                             
-
 
         /*
         *  Send the payload transaction  

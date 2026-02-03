@@ -109,7 +109,7 @@ export function prepareBootstrapTransaction(
  * @param {string} user_address - Address of the user funding the bootstrap.
  * @param {Buffer|string} raw_content - Content to store.
  * @param {object} [options={}] - Options such as compression, revision_of, ...
- * @returns @returns {Promise<{output:object, key:string, transaction:string}>}
+ * @returns {Promise<{output:object, key:string, transaction:string}>}
  *          Bootstrap transaction details including simulated fees and encoded transaction.
  */
 async function getBootstrapTransaction(

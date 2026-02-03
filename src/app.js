@@ -4,7 +4,7 @@ export * from './readers/blocknote-reader.js';
 export * from './readers/streamnote-reader.js';
 export * as BlocknoteManager    from './manager/manager.js';
 
-// Expose internals, can be usefull for hacking stuff around.
+// Expose internals, can be useful for hacking stuff around.
 import * as Crypto          from "./crypto/crypto.js";
 import * as Compressions    from "./compressions/compressions.js";
 import * as Chain           from "./chain/chain.js";
