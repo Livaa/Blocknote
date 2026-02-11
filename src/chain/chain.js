@@ -53,6 +53,19 @@ export function getAddressFromMnemonic(mnemonic){
 
 
 /**
+ * Alias for `algosdk.secretKeyToMnemonic()`.
+ * Convert a mnemonic to an Algorand account.
+ *
+ * @param {buffer} secret key - The account secret key.
+ * @returns {string} The mmemonic from the secret_key.
+ */
+export function secretKeyToMnemonic(secret_key){
+
+    return algosdk.secretKeyToMnemonic(mnemonic);
+}
+
+
+/**
  * Alias for `algosdk.encodeAddress()`.
  * Encode an Algorand address.
  *
@@ -90,9 +103,21 @@ export function getSuggestedParams(){
 }
 
 
+export function bytesToBase64(bytes){
+    
+    return algosdk.bytesToBase64(bytes);
+}
+
+
 export async function getStatus(){
 
     return await algod.status().do();
+}
+
+
+export function encodeUnsignedTransaction(unsigned_transaction){
+    
+    return algosdk.encodeUnsignedTransaction(unsigned_transaction);
 }
 
 
@@ -100,12 +125,12 @@ export async function getStatus(){
  * Alias for `algosdk.decodeSignedTransaction()`.
  * Decode a signed transaction.
  *
- * @param {Uint8Array} signed_txn - Signed transaction bytes.
+ * @param {Uint8Array} signed_transaction - Signed transaction bytes.
  * @returns {Object} Decoded transaction object.
  */
-export function decodeSignedTransaction(signed_txn){
+export function decodeSignedTransaction(signed_transaction){
 
-    return algosdk.decodeSignedTransaction(signed_txn);
+    return algosdk.decodeSignedTransaction(signed_transaction);
 }
 
 /**
@@ -119,6 +144,21 @@ export async function getTransactionById(transaction_id){
     const res = await indexer.lookupTransactionByID(transaction_id).do();
   
     return res?.transaction ?? null;
+}
+
+
+export function buildBoostrapTransaction(suggestedParams, user_address, sender_address, amount, note){
+    
+    const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+            
+        sender:     user_address,
+        receiver:   sender_address, 
+        amount:     amount,           
+        note:       new Uint8Array(Buffer.from(JSON.stringify(note))),
+        suggestedParams
+    });
+    
+    return txn;
 }
 
 

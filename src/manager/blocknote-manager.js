@@ -1,7 +1,6 @@
 import {Blocknote}          from "../writers/blocknote.js" 
 import {BlocknoteReader}    from "../readers/blocknote-reader.js";
 import * as Chain           from "../chain/chain.js";
-import * as Algosdk         from "algosdk";
 import * as Crypto          from "../crypto/crypto.js";
 import * as Db              from "../db/db.js";
 import * as Search          from "../search/search.js";
@@ -134,8 +133,8 @@ async function getBootstrapTransaction(
         throw new Error("For privacy reasons, encryption informations must be provided to 'runFromBootstrapTransaction', not to 'prepareBootstrapTransaction'.");
     }
     
-    let sender          = Algosdk.generateAccount(); 
-    let sender_mnemonic = Algosdk.secretKeyToMnemonic(sender.sk);
+    let sender          = Chain.createAddress(); 
+    let sender_mnemonic = Chain.secretKeyToMnemonic(sender.sk);
     
     if(options.revision_of){
             
@@ -164,27 +163,26 @@ async function getBootstrapTransaction(
     // + minimal balance for sender     
     // + fees require for sender to send minimal balance to receiver
     // + minimal balance for receiver 
-    const suggestedParams                       = await Chain.getSuggestedParams();//algod.getTransactionParams().do();
-    const current_fee                           = Number(suggestedParams.minFee); 
-    const fee_multiplier                        = options?.fee_multiplier ?? 3;
-    const required_amount                       = output.fees + Chain.toMicroalgos(0.1) + current_fee + Chain.toMicroalgos(0.1);   
-    const required_amount_expected_refund       = Chain.toMicroalgos(0.198);
-    const recommended_amount                    = (output.fees * fee_multiplier) + Chain.toMicroalgos(0.1) + (current_fee * fee_multiplier) + Chain.toMicroalgos(0.1) ;
-    const recommended_amount_expected_refund    = (recommended_amount - required_amount) + required_amount_expected_refund;   
-    const bootstrap_key                         = (Crypto.randomBytes(32)).toString("base64");
-    const encrypted_note                        = Crypto.encryptTransactionNote(JSON.stringify({sender:sender_mnemonic, key:bootstrap_key}));
-
-    const transaction = Algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-            
-        sender:     user_address,
-        receiver:   sender.addr.toString(), 
-        amount:     recommended_amount,//deprecated: options?.use_required_amount ? required_amount : recommended_amount,               
-        note:       new Uint8Array(Buffer.from( JSON.stringify({app:process.env.APP_NAME,blocknote:encrypted_note}) )),
-        suggestedParams
-    });
+    const suggestedParams           = await Chain.getSuggestedParams();//algod.getTransactionParams().do();
+    const current_fee               = Number(suggestedParams.minFee); 
+    const fee_multiplier            = options?.fee_multiplier ?? 3;
+    const required_amount           = output.fees + Chain.toMicroalgos(0.1) + current_fee + Chain.toMicroalgos(0.1);   
+    const required_amount_refund    = Chain.toMicroalgos(0.198);
+    const recommended_amount        = (output.fees * fee_multiplier) + Chain.toMicroalgos(0.1) + (current_fee * fee_multiplier) + Chain.toMicroalgos(0.1) ;
+    const recommended_amount_refund = (recommended_amount - required_amount) + required_amount_refund;   
+    const bootstrap_key             = (Crypto.randomBytes(32)).toString("base64");
+    const encrypted_note            = Crypto.encryptTransactionNote(JSON.stringify({sender:sender_mnemonic, key:bootstrap_key}));    
+    const transaction               = Chain.createBootstrapTransaction(
+        
+        suggestedParams,
+        user_address, 
+        sender.addr.toString(), 
+        recommended_amount, 
+        {app:process.env.APP_NAME,blocknote:encrypted_note}
+    );
     
-    output.funding              = {amount: recommended_amount, expected_refund: recommended_amount_expected_refund};    
-    const encoded_transaction   = Algosdk.bytesToBase64(Algosdk.encodeUnsignedTransaction(transaction));
+    output.funding              = {amount: recommended_amount, expected_refund: recommended_amount_refund};    
+    const encoded_transaction   = Chain.bytesToBase64(Chain.encodeUnsignedTransaction(transaction));
    
     // Put the compression into the options & save them, the title & the content 
     // into the sqlite DB.
@@ -272,7 +270,7 @@ async function processRunFromBootstrapTransaction(
     const save = await blocknote.save(content);
 
     // Close the sender with the user as the remainderTo
-    const sender            = Algosdk.mnemonicToSecretKey(note.sender);
+    const sender            = Chain.getAddressFromMnemonic(note.sender);
     const suggested_params  = await Chain.getSuggestedParams();
     const close_to_user     = await Chain.buildTransaction(suggested_params, {addr:user_address}, sender, "", true, false);
 
