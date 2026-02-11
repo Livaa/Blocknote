@@ -1,17 +1,18 @@
 import * as algosdk     from "algosdk";
 import * as Crypto      from "../crypto/crypto.js";
 import * as Search      from "../search/search.js";
+import * as Chain       from "../chain/chain.js";
 import {getCompression} from "../compressions/compressions.js"
-import {BlocknoteReader} from "./blocknote-reader.js"
 
-const algod     = new algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_URL, process.env.ALGOD_PORT);
-const indexer   = new algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
+
+const algod     = Chain.getAlgod();
+const indexer   = Chain.getIndexer();
 
 
 export class StreamnoteReader{
            
     
-    constructor(payload_transaction_id) {        
+    constructor(payload_transaction_id, options = {}) {        
         
         /**  
         * ID of the payload transaction containing metadata.   
@@ -25,28 +26,35 @@ export class StreamnoteReader{
         * 
         * @type {string|null}
         */
-        this.aes_key = null;
+        this.aes_key = options?.aes_key;
         
         /**
         * Password used to derive AES key.
         * 
         * @type {string|null}
         */
-        this.password = null;
+        this.password = options?.password;
         
         /**
         * Callback triggered when a chunk of data is emitted.
         * 
         * @type {Function}
         */
-        this.onData = null;
+        this.onData = options?.onData;
+        
+        /**
+        * Callback triggered when retrieving previous sent data.
+        * 
+        * @type {Function}
+        */
+        this.onGetHistoricalData = options?.onGetHistoricalData;
         
         /**
         * Logs callback.
         * 
         * @type {Function}
         */
-        this.onLog = null;
+        this.onLog = options?.onLog;
                 
         /** 
         * Metadata extracted from the initial payload transaction.    
@@ -84,16 +92,14 @@ export class StreamnoteReader{
         this.stream_is_over = false;
 
         /** 
-        * Offset tracking how many bytes have been consolidated so far
-        * while reassembling chunks in order.
+        * Offset tracking how many chunks have been consolidated so far.
         * 
         * @type {number} 
         */
         this.consolidate_seek = 0;
 
         /** 
-        * Stores each chunk of the payload by its index.
-        * Allows reordering, deduplication, and eventual merging into `payload`.
+        * Stores each chunk of the content.
         * 
         * @type {Map<number, Uint8Array>} 
         */
@@ -106,36 +112,125 @@ export class StreamnoteReader{
         * @type {number|null} 
         */
         this.youngest_block = null;
+        
+        this.getPayload();
     }
     
-    
+
     /**
     * Get the payload object (metadata).
     * 
     * @returns {Object|null} The payload or null if not yet retrieved.
     */
-    getPayload(){
-        
-        return this.payload;
-    }
-           
-    
-    /**
-    * Retrieves the metadata transaction from indexer if not done yet.
-    * Parses and stores sender/receiver/compression info.
-    * 
-    * @returns {Promise<void>}
-    */
-    async retrievePayload(){
+    async getPayload(){
         
         if( !this.payload ){
             
             const payload_transaction   = await indexer.lookupTransactionByID(this.payload_transaction_id).do();            
             this.payload                = JSON.parse(Buffer.from(payload_transaction.transaction.note, "base64"));
+            this.payload.title          = await this.decryptTitle(this.payload, this.aes_key, this.password);
             this.sender                 = payload_transaction.transaction.sender;
-            this.receiver               = payload_transaction.transaction.paymentTransaction.receiver;  
-            this.youngest_block         = payload_transaction.transaction.confirmedRound - BigInt(10);            
-        } 
+            this.receiver               = payload_transaction.transaction.paymentTransaction.receiver;
+            // this.youngest_block         = payload_transaction.transaction.confirmedRound - BigInt(10); // probably not needed
+        }
+        
+        return this.payload;
+    }
+            
+    
+    /**
+    * Decrypts the title from the payload if it is encrypted.
+    *
+    * @param {Object} payload - The full payload object containing the title and optional encryption details.
+    * @param {string} aes_key - The AES key to use for decryption.
+    * @param {string} password - The password used for key derivation (if applicable).
+    * @returns {Promise<string>} - The decrypted title, or the original title if not encrypted.
+    */
+    async decryptTitle(payload, aes_key, password){
+                
+        let title = payload.title;
+
+        if(typeof title === "object"){
+
+            const data = Buffer.from(payload.title.data, "base64");
+            
+            if(payload?.salt){
+
+                payload.title.salt = payload.salt;
+            }
+
+            const decrypt_title = await this.decrypt(data, payload.title, aes_key, password);          
+            title               = decrypt_title.toString();
+        }
+
+        return title;
+    }
+    
+    
+    /**
+     * Decrypts the content if encryption metadata is present.
+     * Supports:
+     *  - Direct AES key
+     *  - Password-based PBKDF2 key derivation with salt
+     * 
+     * @param {Uint8Array|Buffer} content - The encrypted content.
+     * @param {Object} payload - Metadata containing encryption info (iv, tag, salt).
+     * @param {string} aes_key - The aes_key to decrypt the content
+     * @param {string} password - The password to decrypt the content
+     * @returns {Promise<Uint8Array>} - Decrypted content.
+     */
+    async decrypt(content, payload, aes_key, password){
+
+        let decrypted_content           = null;
+        const encrypted_with_password   = payload?.salt;
+  
+        if(encrypted_with_password){
+
+            if( !password ){
+
+                throw Error("Content is encrypted: params.password is missing");
+            }
+           
+            decrypted_content = await Crypto.decryptFromDerivedKey(
+
+                Buffer.from(payload.iv, "base64"), 
+                Buffer.from(payload.tag, "base64"), 
+                Buffer.from(payload.salt, "base64"), 
+                Buffer.from(content),
+                password
+            );
+        }
+        else{
+
+            if( !aes_key ){
+
+                throw Error("Content is encrypted: params.aes_key is missing");
+            }
+
+            decrypted_content = await Crypto.decrypt(
+
+                Buffer.from(payload.iv, "base64"), 
+                Buffer.from(payload.tag, "base64"),  
+                Buffer.from(content),
+                aes_key
+            );
+        }
+
+        return decrypted_content;
+    } 
+           
+    
+    /**
+    * Wait until this.payload is populated.
+    * 
+    * @returns {Promise<void>}
+    */
+    async assurePayloadIsLoaded(){
+        
+        while ( !this.payload ){
+           
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
     }
     
     
@@ -145,15 +240,30 @@ export class StreamnoteReader{
     *
     * @returns {Promise<Uint8Array>} Full content of the stream so far.
     */
-    async getPreviousData(){
+    async getHistoricalData(){
 
-        await this.retrievePayload();
+        await this.assurePayloadIsLoaded();
 
         const get_all_transactions = await Search.getAllStreamedTransactions(this.sender, this.receiver, null, this.payload_transaction_id);                                    
   
         await this.updateContentChunks(get_all_transactions);
 
-        return this.consolidateContent();
+        return await this.consolidateContent();
+    }
+    
+             
+    /**
+    * Allow external calls to check if the stream has ended.
+    * 
+    * @returns {Promise<boolean>}
+    */
+    async isOver(){
+        
+        await this.assurePayloadIsLoaded();
+        
+        const is_over = await Search.isStreamOver(this.receiver);
+        
+        return is_over;
     }
     
     
@@ -162,42 +272,73 @@ export class StreamnoteReader{
      * 
      * @returns {Promise<void>}
      */
-    async start(options = {}){
+    async start(){
  
-        await this.retrievePayload();          
-               
-        this.aes_key    = options?.aes_key;               
-        this.password   = options?.password;               
-        this.onData     = options?.onData;                
-        this.onLog      = options?.onLog;
+        await this.assurePayloadIsLoaded();             
               
-        if(options?.getPreviousData){
+        if(this.onGetHistoricalData){
             
-            const previous_data = await this.getPreviousData();
+            const historical_data = await this.getHistoricalData();
             
-            options.getPreviousData(previous_data);
+            this.onGetHistoricalData(historical_data);
         }
         
-        // If getPreviousData() was called before, there is already a seek.
+        // If getHistoricalData() was called before, there is already a seek.
         // else, the first seek must be the last transaction.
-        if( !this.consolidate_seek ){
-                                      
-            const last_transaction = await Search.getLastReceivedTransaction(this.sender, this.receiver, this.payload_transaction_id);
-            
-            // If no transaction was sent yet, retries in few seconds.
-            if( !last_transaction ){
-                
-                await new Promise(r => setTimeout(r, 5000));
-                
-                return this.start();
-            }
-            
-            await this.updateContentChunks([last_transaction]);
+        
+        if( this.consolidate_seek === 0 ){
+                       
+            this.youngest_block = (await Chain.getStatus()).lastRound;     
         }
-             
+                     
         this.readIncomingTransactions(this.sender, this.receiver);             
     }             
 
+
+    /**
+    * Polls the blockchain for new chunks until a stop signal is detected.
+    * 
+    * @param {string} sender
+    * @param {string} receiver
+    * @returns {Promise<void>}
+    */
+    async readIncomingTransactions(sender, receiver) {
+        
+        while ( !this.stream_is_over ){
+
+            await this.consolidateContent();
+            
+            /*             
+                The indexer may lag behind the latest round.
+                Example:
+            
+                - The current last round is 1,000,000
+                - The indexer might already have all transactions from this block… or not.
+                - Even if it does, it could still be indexing earlier blocks (999,999; 999,998; etc.).
+
+                To handle this, we query starting from (youngest_block - 10), 
+                roughly a 30s window. This buffer gives the indexer time to 
+                fully register new transactions and ensures we don't miss 
+                any delayed ones from previous blocks.            
+            */
+           
+            const min_round = this.youngest_block - BigInt(10);
+
+            this.log("Checking for new incoming txns starting from block: " + min_round);
+
+            const get_all_transactions = await Search.getAllStreamedTransactions(sender, receiver, min_round, this.payload_transaction_id);
+
+            if (get_all_transactions.length > 0) {
+              
+                await this.updateContentChunks(get_all_transactions);
+            }
+           
+            await new Promise(resolve => setTimeout(resolve, 3000));          
+        }
+        
+        this.log("The stream is over");
+    }
+    
 
     /**
      * Reads raw chunk transactions, decrypts & decompresses them,
@@ -213,11 +354,11 @@ export class StreamnoteReader{
         
         for (const transaction of transactions) {
            
-            const note                  = transaction.note;   
+            const note                  = transaction.note;
             const uint_array_counter    = note.slice(0, 4);   
             const view                  = new DataView(uint_array_counter.buffer);
             const counter               = view.getUint32(0, true); // true = little-endian           
-            
+     
             if(this.content_chunks.get(counter)     // This chunk is already into this.content_chunks
                || counter < this.consolidate_seek   // Or it was already sent
             ){
@@ -247,54 +388,6 @@ export class StreamnoteReader{
             this.content_chunks  = new Map(content_chunks_arr);        
         }        
     }
-
-    
-    /**
-    * Polls the blockchain for new chunks until a stop signal is detected.
-    * 
-    * @param {string} sender
-    * @param {string} receiver
-    * @returns {Promise<void>}
-    */
-    async readIncomingTransactions(sender, receiver) {
-        
-        while ( !this.stream_is_over ){
-            
-            this.consolidateContent();
-            
-            /*             
-                The indexer may lag behind the latest round.
-                Example:
-            
-                - The current last round is 1,000,000
-                - The indexer might already have all transactions from this block… or not.
-                - Even if it does, it could still be indexing earlier blocks (999,999; 999,998; etc.).
-
-                To handle this, we query starting from (youngest_block - 10), 
-                roughly a 30s window. This buffer gives the indexer time to 
-                fully register new transactions and ensures we don't miss 
-                any delayed ones from previous blocks.            
-            */
-           
-            const min_round = this.youngest_block - BigInt(10);
-
-            this.log("Checking for new incoming txns starting from block: " + min_round);
-
-            const get_all_transactions = await Search.getAllStreamedTransactions(sender, receiver, min_round, this.payload_transaction_id);
-
-            if (get_all_transactions.length > 0) {
-                
-                await this.updateContentChunks(get_all_transactions);
-            }
-
-            if (!this.stream_is_over) {
-                
-                await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-        }
-
-        this.log("The stream is over");
-    }
     
     
     /**
@@ -303,7 +396,7 @@ export class StreamnoteReader{
     * 
     * @returns {Uint8Array}
     */
-    consolidateContent() {     
+    async consolidateContent() {     
         
         const content = [];                                  
       
@@ -311,7 +404,7 @@ export class StreamnoteReader{
         if(this.content_chunks.size === 0){                       
 
             // If they are no new transactions, maybe the stream is over.
-            this.updateStateIfStreamIsOver(this.receiver);              
+            await this.updateStateIfStreamIsOver(this.receiver);              
                              
             return new Uint8Array;
         }
@@ -327,7 +420,7 @@ export class StreamnoteReader{
         this.log("Getting data from counter: " + this.consolidate_seek);
         
         while (this.content_chunks.has(this.consolidate_seek)) {
-            
+      
             const chunk = this.content_chunks.get(this.consolidate_seek);
 
             returned_chunks_keys.push(this.consolidate_seek);
@@ -386,22 +479,7 @@ export class StreamnoteReader{
    
         this.stream_is_over = await Search.isStreamOver(receiver);
     } 
-    
-    
-    /**
-    * Allow external calls to check if the stream has ended.
-    * 
-    * @returns {Promise<boolean>}
-    */
-    async isOver(){
-        
-        await this.retrievePayload();
-        
-        const is_over = await Search.isStreamOver(this.receiver);
-        
-        return is_over;
-    }
-       
+          
     
     /**    
      * Handles optional AES decryption and compression decoding of a single chunk.
@@ -425,15 +503,15 @@ export class StreamnoteReader{
         
         if(this.aes_key && encryption_seed){
            
-            const buffer_seed   = Buffer.from(encryption_seed, "base64"); // iv/saltfrom the payload as based64
+            const buffer_seed   = Buffer.from(encryption_seed, "base64");
             content             = Crypto.decryptWithDerivation(this.aes_key, data, counter, buffer_seed);
         }
         
         if( !this.compression ){
             
-            this.compression = await getCompression(this.payload.compression ?? "none");           
+            this.compression = await getCompression(this.payload.compression ?? "none");   
         }
-        
+              
         content = await this.compression.uncompress(content);
                  
         return content;

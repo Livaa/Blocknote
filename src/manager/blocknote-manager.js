@@ -7,8 +7,8 @@ import * as Db              from "../db/db.js";
 import * as Search          from "../search/search.js";
 import {randomUUID}         from 'crypto';
 
-const algod     = new Algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_URL, process.env.ALGOD_PORT);
-const indexer   = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
+const algod     = Chain.getAlgod();
+const indexer   = Chain.getIndexer();
 const queue     = {};
 const results   = {};
 
@@ -164,12 +164,12 @@ async function getBootstrapTransaction(
     // + minimal balance for sender     
     // + fees require for sender to send minimal balance to receiver
     // + minimal balance for receiver 
-    const suggestedParams                       = await algod.getTransactionParams().do();
+    const suggestedParams                       = await Chain.getSuggestedParams();//algod.getTransactionParams().do();
     const current_fee                           = Number(suggestedParams.minFee); 
     const fee_multiplier                        = options?.fee_multiplier ?? 3;
-    const required_amount                       = output.fees + Algosdk.algosToMicroalgos(0.1) + current_fee + Algosdk.algosToMicroalgos(0.1);   
-    const required_amount_expected_refund       = Algosdk.algosToMicroalgos(0.198);
-    const recommended_amount                    = (output.fees * fee_multiplier) + Algosdk.algosToMicroalgos(0.1) + (current_fee * fee_multiplier) + Algosdk.algosToMicroalgos(0.1) ;
+    const required_amount                       = output.fees + Chain.toMicroalgos(0.1) + current_fee + Chain.toMicroalgos(0.1);   
+    const required_amount_expected_refund       = Chain.toMicroalgos(0.198);
+    const recommended_amount                    = (output.fees * fee_multiplier) + Chain.toMicroalgos(0.1) + (current_fee * fee_multiplier) + Chain.toMicroalgos(0.1) ;
     const recommended_amount_expected_refund    = (recommended_amount - required_amount) + required_amount_expected_refund;   
     const bootstrap_key                         = (Crypto.randomBytes(32)).toString("base64");
     const encrypted_note                        = Crypto.encryptTransactionNote(JSON.stringify({sender:sender_mnemonic, key:bootstrap_key}));

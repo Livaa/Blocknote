@@ -16,18 +16,12 @@ export class Streamnote extends Blocknote {
     constructor(sender_mnemonic, options = {}) {
        
         super(sender_mnemonic, options);
-
-        /**
-        * Whether it's the first run.
-        * @type {boolean}
-        */
-        this.first_run = true;   
         
         /**
         * Extra padding size in bytes.
         * @type {number}
         */
-        this.extra_padding_size = 50;
+        this.extra_padding_size = 100;
         
         /**
         * Current extra padding applied.
@@ -90,6 +84,12 @@ export class Streamnote extends Blocknote {
         * @type {boolean}
         */
         this.is_finalized = false;        
+                
+        /**
+         * Is true once the stop transaction was sent.
+         * @type {boolean}
+         */
+        this.is_over = false;
         
         /**
         * Callback fired with the payload transaction id once created.
@@ -101,7 +101,10 @@ export class Streamnote extends Blocknote {
         * Logging callback for debug messages.
         * @type {(message: any) => void|null}
         */
-        this.onLog = null;     
+        this.onLog = null;    
+        
+        
+        this.init()
     }
     
     
@@ -173,6 +176,87 @@ export class Streamnote extends Blocknote {
     }
     
     
+    async init(){
+        
+        await this.prepareOptions(this.constructor_options);
+            
+        //this.first_run = false;
+
+        if( !this.sender ){
+
+            throw Error("The sender is missing");
+        }                                
+
+        if( !this.compression ){
+
+            await this.setCompression("none");
+        }
+
+        this.receiver = Chain.createAddress();             
+
+        // Prepare the result
+        this.result = {
+
+            fees:       0,
+            start:      Date.now(),
+            receiver:   this.receiver.addr.toString()
+        };
+
+        // Prepare the payload
+        this.payload = {
+
+            title:  this.title,                                               
+            type:   "stream",
+            mime:   this.mime
+        };   
+
+        // If a compression is set, add it to the payload.
+        if(this.compression.name() !== "none"){
+
+            this.payload.compression = this.compression.name();
+        }
+
+        // If there is a password, derives an aes key from it.
+        if(this.password){
+
+            const {salt, derived_key}   = await Crypto.deriveKey(this.password);
+            this.encryption_salt        = salt;
+            this.payload.salt           = this.encryption_salt.toString("base64");                
+            this.aes_key                = derived_key;       
+        }            
+        else if(this.aes_key){
+
+            this.iv         = Crypto.randomBytes(16);
+            this.payload.iv = this.iv.toString("base64");           
+        }     
+
+        if(this.aes_key && this.encrypt_title === true){
+
+            this.encryptTitle();
+        }            
+
+        // Build & send payload transaction.
+        const suggested_params          = await Chain.getSuggestedParams();
+        const payload_transaction       = await Chain.buildPayloadTransaction(suggested_params, this.sender, this.receiver, this.payload);            
+        this.result.payload_transaction = payload_transaction.id;
+        const send_payload_transaction  = await Chain.sendTransaction(payload_transaction.txn);
+
+        if(send_payload_transaction?.error){
+
+            this.logError(send_payload_transaction.error);
+
+            return;
+        }
+
+        if(this.getPayloadTransactionId){
+
+            this.getPayloadTransactionId(payload_transaction.id);
+        }
+        
+        this.start();
+    }
+    
+    
     /**
     * Append raw content to the stream. On the first call:
     * - Initializes sender, receiver, payload, compression and encryption settings.
@@ -188,89 +272,7 @@ export class Streamnote extends Blocknote {
         if( !this.stop_requested ){
                         
             this.content += raw_content;        
-        }
-      
-        if(this.first_run){
-            
-            await this.prepareOptions(this.constructor_options);
-            
-            this.first_run = false;
-            
-            if( !this.sender ){
-            
-                throw Error("The sender is missing");
-            }                                
-        
-            if( !this.compression ){
-                
-                await this.setCompression("none");
-            }
-            
-            this.receiver = Chain.createAddress();             
-            
-            // Prepare the result
-            this.result = {
-                
-                fees:       0,
-                start:      Date.now(),
-                receiver:   this.receiver.addr.toString()
-            };
-            
-            // Prepare the payload
-            this.payload = {
-
-                title:      this.title,                                               
-                type:       "stream",
-                mime:       this.mime
-            };   
-            
-            // If a compression is set, add it to the payload.
-            if(this.compression.name() !== "none"){
-                
-                this.payload.compression = this.compression.name();
-            }
-            
-            // If there is a password, derives an aes key from it.
-            if(this.password){
-
-                const {salt, derived_key}   = await Crypto.deriveKey(this.password);
-                this.encryption_salt        = salt;
-                this.payload.salt           = this.encryption_salt.toString("base64");                
-                this.aes_key                = derived_key;       
-            }            
-            else if(this.aes_key){
-                
-                this.iv         = Crypto.randomBytes(16);
-                this.payload.iv = this.iv.toString("base64");           
-            }     
-              
-            if(this.aes_key && this.encrypt_title === true){
-                
-                this.encryptTitle();
-            }            
-            
-            // Build & send payload transaction.
-            const suggested_params          = await Chain.getSuggestedParams();
-            const payload_transaction       = await Chain.buildPayloadTransaction(suggested_params, this.sender, this.receiver, this.payload);            
-            this.result.payload_transaction = payload_transaction.id;
-            const send_payload_transaction  = await Chain.sendTransaction(payload_transaction.txn);
-
-            if(send_payload_transaction?.error){
-                             
-                this.logError(send_payload_transaction.error);
-                
-                return;
-            }
-                            
-            if(this.getPayloadTransactionId){
-
-                this.getPayloadTransactionId(payload_transaction.id);
-            }
-
-            //this.saveTransactionCosts(payload_transaction.txn);
-            //this.startTransactionsQueue();
-            this.start();                          
-        }                                                
+        }                                                     
     }
  
  
@@ -282,13 +284,13 @@ export class Streamnote extends Blocknote {
     */
     async start() {
         
-        this.startTransactionsQueue();
+        this.runTransactionsQueue();
         
         while( !this.stop_requested || this.content.length > 0 ){
 
             await this.process();      
             
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
 
         this.finalize();
@@ -302,17 +304,17 @@ export class Streamnote extends Blocknote {
     * 
     * @returns {Promise<void>}
     */
-    async process(){
-        
+    async process(){       
+             
         if(this.content.length === 0){
                       
             return;
         }
    
         let chunk_to_send           = this.content.slice(0, this.note_max_size + this.extra_padding);
-        let compressed_chunk        = await this.compress(chunk_to_send, this.counter);                     
+        let compressed_chunk        = await this.compress(chunk_to_send, this.counter);  
         const hash_compressed_chunk = Crypto.sha256(compressed_chunk);
-        
+      
         // Check if the current compressed_chunk is the same than the previous one.
         // if it is, it means the chunk wasn't sent because it is smaller than 1024.
         const same_chunk_than_previous = hash_compressed_chunk === this.last_hash_compressed_chunk;
@@ -323,7 +325,7 @@ export class Streamnote extends Blocknote {
             this.ts_same_hash               = null;
         }
         else if(same_chunk_than_previous && this.ts_same_hash === null){
-                
+
             this.ts_same_hash = Date.now();                                    
         }
         
@@ -340,7 +342,7 @@ export class Streamnote extends Blocknote {
         if(this.stop_requested){
             
             const compressed_remaining_content = await this.compress(this.content, this.counter);
-            
+
             if(compressed_remaining_content.length <= this.note_max_size){
                 
                 this.log("stop() was invoked. Left content can be sent into one last txn");
@@ -358,8 +360,8 @@ export class Streamnote extends Blocknote {
                              
             // Try with more padding.
             this.extra_padding += this.extra_padding_size;
-            
-            // If the same chunk stays into the pipeline for more than 15s
+                      
+            // If the same chunk stays into the pipeline for more than 'note_size_not_reached_timeout'
             // it is sent disregarding the size is smaller than 1024.
             if(this.ts_same_hash){
                 
@@ -382,19 +384,17 @@ export class Streamnote extends Blocknote {
               
             // If the compressed_chunk is too big, reduce the padding (49,48,47, ...)
             // until the compressed_chunk size is === to 1024                    
-            let smaller_padding = this.extra_padding;
            
-            while(compressed_chunk.length > this.note_max_size){
-                                               
-                smaller_padding--;
+            while(compressed_chunk.length > this.note_max_size){                
                 
-                chunk_to_send       = this.content.slice(0, this.note_max_size + smaller_padding); 
+                this.extra_padding  = this.extra_padding - 5;               
+                chunk_to_send       = this.content.slice(0, this.note_max_size + this.extra_padding); 
                 compressed_chunk    = await this.compress(chunk_to_send, this.counter);
-                
+
                 await new Promise(resolve => setTimeout(resolve, 10));
             }
-            
-            this.content        = this.content.slice(this.note_max_size + smaller_padding);
+          
+            this.content        = this.content.slice(this.note_max_size + this.extra_padding);      
             this.extra_padding  = 0;            
                         
             this.log({"new_chunk": compressed_chunk.length});         
@@ -425,7 +425,7 @@ export class Streamnote extends Blocknote {
             is_close_to_remainder,
             false
         );
-        
+
         this.transactions_queue.push(transaction);
     }
     
@@ -436,7 +436,7 @@ export class Streamnote extends Blocknote {
     * 
     * @returns {Promise<void>}
     */
-    async startTransactionsQueue(){
+    async runTransactionsQueue(){
         
         while( !this.is_finalized || this.transactions_queue.length > 0 ){
                     
@@ -448,13 +448,8 @@ export class Streamnote extends Blocknote {
                 this.log({"in_queue":transactions_to_send.length});
 
                 this.transactions_queue = [];
-
-                const send_transactions = await this.sendTransactions(transactions_to_send.map(transaction => transaction.txn));              
-           
-                for(const transaction of transactions_to_send){
-
-                   // this.saveTransactionCosts(transaction);
-                }            
+         
+                await this.sendTransactions(transactions_to_send.map(transaction => transaction.txn));                 
             }
             
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -481,6 +476,8 @@ export class Streamnote extends Blocknote {
 
             this.onFinish(this.result);
         }
+        
+        this.is_over = true;
     }
     
     
@@ -494,7 +491,7 @@ export class Streamnote extends Blocknote {
     */
     async compress(content, counter){
  
-        let compress = await this.compression.compress(content); 
+        let compress = await this.compression.compress(content);                         
                 
         if(this.aes_key){
             
@@ -545,7 +542,7 @@ export class Streamnote extends Blocknote {
         this.result.payload     = this.payload;                        
         this.is_finalized       = true;                
     }
-    
+
     
     /**
     * Send a message to the logging callback (if defined).

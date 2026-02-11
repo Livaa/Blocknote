@@ -1,8 +1,6 @@
-
-import * as Algosdk from "algosdk";
 import * as Crypto  from "../crypto/crypto.js";
 
-const indexer = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
+const indexer = Chain.getIndexer();
 
 
 /**

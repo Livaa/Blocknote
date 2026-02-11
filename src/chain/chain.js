@@ -1,8 +1,31 @@
 import algosdk                              from 'algosdk';
 import {fromSeed, KeyContext, XHDWalletAPI} from '@algorandfoundation/xhd-wallet-api';
 
-const algod     = new Algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_URL, process.env.ALGOD_PORT);
-const indexer   = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
+const algod     = new algosdk.Algodv2(process.env.ALGOD_TOKEN, process.env.ALGOD_URL, process.env.ALGOD_PORT);
+const indexer   = new algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
+
+
+/**
+ * Returns the algod instance.
+ * 
+ * @returns {algosdk.Algodv2}
+ */
+export function getAlgod(){
+    
+    return algod;
+}
+
+
+/**
+ * Returns the indexer instance.
+ * 
+ * @returns {algosdk.Indexer}
+ */
+export function getIndexer(){
+    
+    return indexer;
+}
+
 
 /**
  * Alias for `algosdk.generateAccount()`.
@@ -64,6 +87,12 @@ export function toMicroalgos(algos){
 export function getSuggestedParams(){
 
     return algod.getTransactionParams().do();
+}
+
+
+export async function getStatus(){
+
+    return await algod.status().do();
 }
 
 

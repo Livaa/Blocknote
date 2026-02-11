@@ -1,10 +1,10 @@
-import * as Algosdk     from "algosdk";
 import * as Crypto      from "../crypto/crypto.js";
 import * as Chain       from "../chain/chain.js";
 import * as Search      from "../search/search.js";
 import {getCompression} from "../compressions/compressions.js"
 
-const indexer   = new Algosdk.Indexer(process.env.INDEXER_TOKEN, process.env.INDEXER_URL, process.env.INDEXER_PORT);
+
+const indexer = Chain.getIndexer();
 
 
 export class BlocknoteReader {
@@ -23,8 +23,7 @@ export class BlocknoteReader {
         this.aes_key = options?.aes_key;
         this.password = options?.password;
         this.revision = options?.revision;
-        this.return_raw = options?.return_raw;
-  
+        this.return_raw = options?.return_raw;  
     }
     
     
