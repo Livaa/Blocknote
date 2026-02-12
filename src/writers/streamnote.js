@@ -178,15 +178,14 @@ export class Streamnote extends Blocknote {
     
     async init(){
         
-        await this.prepareOptions(this.constructor_options);
-            
-        //this.first_run = false;
+        await this.prepareOptions(this.constructor_options);                   
 
         if( !this.sender ){
 
             throw Error("The sender is missing");
         }                                
 
+        // If no compression was set, "none" is applied.        
         if( !this.compression ){
 
             await this.setCompression("none");
@@ -194,12 +193,15 @@ export class Streamnote extends Blocknote {
 
         this.receiver = Chain.createAddress();             
 
+        const receiver  = await Chain.getRandomHDAccount(this.sender.sk);
+        this.receiver   = Chain.getAddressFromMnemonic(receiver.mnemonic); 
+        
         // Prepare the result
         this.result = {
 
             fees:       0,
             start:      Date.now(),
-            receiver:   this.receiver.addr.toString()
+            //receiver:   this.receiver.addr.toString()
         };
 
         // Prepare the payload
@@ -207,7 +209,9 @@ export class Streamnote extends Blocknote {
 
             title:  this.title,                                               
             type:   "stream",
-            mime:   this.mime
+            mime:   this.mime,
+            addid:  receiver.address_index,
+            accid:  receiver.account_index
         };   
 
         // If a compression is set, add it to the payload.
@@ -339,20 +343,19 @@ export class Streamnote extends Blocknote {
         
         // If ::stop() was invoked, send all the remaining content into 1 
         // single transaction if possible.
-        if(this.stop_requested){
-            
-            const compressed_remaining_content = await this.compress(this.content, this.counter);
+        
+        if(this.stop_requested && (this.content.length <= this.note_max_size)){
 
-            if(compressed_remaining_content.length <= this.note_max_size){
+            if(this.content.length > 0){
                 
-                this.log("stop() was invoked. Left content can be sent into one last txn");
+                const compressed_remaining_content = await this.compress(this.content, this.counter);
 
                 this.sendTransaction(compressed_remaining_content);                                
-                
+
                 this.content = "";
-                
-                return;
-            }            
+            }
+            
+            return;            
         }
                        
         // If the compressed content is smaller than the max note size.
@@ -469,8 +472,10 @@ export class Streamnote extends Blocknote {
         const suggested_params                      = await Chain.getSuggestedParams();
         const close_to_remainder_transaction        = await Chain.buildTransaction(suggested_params, this.sender, this.receiver, "stop", true, false);
         const send_close_to_remainder_transaction   = await this.sendTransactions([close_to_remainder_transaction.txn]);      
-        
-        //this.saveTransactionCosts(close_to_remainder_transaction.txn);
+                       
+        this.result.end         = Date.now();
+        this.result.duration    = this.result.end - this.result.start;
+        this.result.payload     = this.payload;                        
         
         if(this.onFinish){
 
@@ -536,10 +541,7 @@ export class Streamnote extends Blocknote {
     finalize() {
                
         this.content            = "";
-        this.extra_padding      = 0;      
-        this.result.end         = Date.now();
-        this.result.duration    = this.result.end - this.result.start;
-        this.result.payload     = this.payload;                        
+        this.extra_padding      = 0;             
         this.is_finalized       = true;                
     }
 

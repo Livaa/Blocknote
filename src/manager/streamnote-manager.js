@@ -1,4 +1,4 @@
-import Chain        from "../chain/chain.js";
+import * as Chain   from "../chain/chain.js";
 import {randomUUID} from 'crypto';
 
 const algod     = Chain.getAlgod();
@@ -76,7 +76,7 @@ export function send(uuid, data){
  * @param {string} uuid - Stream UUID.
  * @returns {void}
  */
-export function stop(uuid, data){
+export function stop(uuid){
     
     streams[uuid].stop();
 }

@@ -163,7 +163,7 @@ async function getBootstrapTransaction(
     // + minimal balance for sender     
     // + fees require for sender to send minimal balance to receiver
     // + minimal balance for receiver 
-    const suggestedParams           = await Chain.getSuggestedParams();//algod.getTransactionParams().do();
+    const suggestedParams           = await Chain.getSuggestedParams();
     const current_fee               = Number(suggestedParams.minFee); 
     const fee_multiplier            = options?.fee_multiplier ?? 3;
     const required_amount           = output.fees + Chain.toMicroalgos(0.1) + current_fee + Chain.toMicroalgos(0.1);   

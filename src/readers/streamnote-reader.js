@@ -1,4 +1,3 @@
-import * as algosdk     from "algosdk";
 import * as Crypto      from "../crypto/crypto.js";
 import * as Search      from "../search/search.js";
 import * as Chain       from "../chain/chain.js";
@@ -9,7 +8,7 @@ const algod     = Chain.getAlgod();
 const indexer   = Chain.getIndexer();
 
 
-export class StreamnoteReader{
+export class StreamnoteReader {
            
     
     constructor(payload_transaction_id, options = {}) {        
@@ -41,6 +40,8 @@ export class StreamnoteReader{
         * @type {Function}
         */
         this.onData = options?.onData;
+        
+        this.onFinish = options?.onFinish;
         
         /**
         * Callback triggered when retrieving previous sent data.
@@ -337,6 +338,11 @@ export class StreamnoteReader{
         }
         
         this.log("The stream is over");
+        
+        if(this?.onFinish){
+            
+            this.onFinish();
+        }
     }
     
 

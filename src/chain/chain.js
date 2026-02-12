@@ -133,6 +133,7 @@ export function decodeSignedTransaction(signed_transaction){
     return algosdk.decodeSignedTransaction(signed_transaction);
 }
 
+
 /**
  * Lookup a transaction by its ID using the indexer.
  *

@@ -1,4 +1,6 @@
 import * as Crypto  from "../crypto/crypto.js";
+import * as Chain   from "../chain/chain.js";
+
 
 const indexer = Chain.getIndexer();
 
