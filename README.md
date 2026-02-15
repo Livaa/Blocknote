@@ -18,7 +18,7 @@ Whether you're building an archival tool, a decentralized publishing platform, o
 ## NodeJS or Bun ?
 
 Bun is a modern alternative to Node.js, known for its superior performance, especially in compute-heavy tasks. Since Blocknote makes extensive use of cryptography and compression, we recommend using Bun for optimal speed and efficiency.\
-In fact, our current public dapp ([blocknote.space](https://blocknote.app)) is running on Bun.
+In fact, our current public dapp ([blocknote.space](https://blocknote.space)) is running Blocknote on Bun.
 
 Blocknote remains **fully compatible** with both Bun and Node.js.
 
