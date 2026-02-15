@@ -48,7 +48,7 @@ export class StreamnoteReader {
         * 
         * @type {Function}
         */
-        this.onGetHistoricalData = options?.onGetHistoricalData;
+        this.onGetHistoricalData = options?.getHistoricalData;
         
         /**
         * Logs callback.
@@ -292,7 +292,14 @@ export class StreamnoteReader {
             this.youngest_block = (await Chain.getStatus()).lastRound;     
         }
                      
-        this.readIncomingTransactions(this.sender, this.receiver);             
+        await this.readIncomingTransactions(this.sender, this.receiver);    
+                  
+        this.log("The stream is over");
+        
+        if(this?.onFinish){
+            
+            this.onFinish();
+        }
     }             
 
 
@@ -335,14 +342,7 @@ export class StreamnoteReader {
             }
            
             await new Promise(resolve => setTimeout(resolve, 3000));          
-        }
-        
-        this.log("The stream is over");
-        
-        if(this?.onFinish){
-            
-            this.onFinish();
-        }
+        }      
     }
     
 

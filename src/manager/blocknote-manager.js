@@ -172,7 +172,7 @@ async function getBootstrapTransaction(
     const recommended_amount_refund = (recommended_amount - required_amount) + required_amount_refund;   
     const bootstrap_key             = (Crypto.randomBytes(32)).toString("base64");
     const encrypted_note            = Crypto.encryptTransactionNote(JSON.stringify({sender:sender_mnemonic, key:bootstrap_key}));    
-    const transaction               = Chain.createBootstrapTransaction(
+    const transaction               = Chain.buildBootstrapTransaction(
         
         suggestedParams,
         user_address, 

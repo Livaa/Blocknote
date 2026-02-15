@@ -54,10 +54,10 @@ export function getAddressFromMnemonic(mnemonic){
 
 /**
  * Alias for `algosdk.secretKeyToMnemonic()`.
- * Convert a mnemonic to an Algorand account.
+ * Convert a secret key to a mnemonic.
  *
- * @param {buffer} secret key - The account secret key.
- * @returns {string} The mmemonic from the secret_key.
+ * @param {Uint8Array} secret_key - The account secret key.
+ * @returns {string} The mnemonic derived from the secret key.
  */
 export function secretKeyToMnemonic(secret_key){
 
@@ -66,7 +66,6 @@ export function secretKeyToMnemonic(secret_key){
 
 
 /**
- * Alias for `algosdk.encodeAddress()`.
  * Encode an Algorand address.
  *
  * @param {string|Uint8Array} address - The address to encode.
@@ -79,7 +78,6 @@ export function encodeAddress(address){
 
 
 /**
- * Alias for `algosdk.algosToMicroalgos()`.
  * Convert ALGO to microAlgos.
  *
  * @param {number} algos - Amount in ALGO.
@@ -92,7 +90,6 @@ export function toMicroalgos(algos){
 
 
 /**
- * Alias for `algod.getTransactionParams().do()`.
  * Fetch suggested transaction parameters from the Algorand network.
  *
  * @returns {Promise<Object>} Suggested params (fee, firstRound, lastRound, genesisID, etc.).
@@ -103,18 +100,35 @@ export function getSuggestedParams(){
 }
 
 
+/**
+ * Convert bytes to a base64 string.
+ *
+ * @param {Uint8Array} bytes - Input bytes.
+ * @returns {string} Base64-encoded string.
+ */
 export function bytesToBase64(bytes){
     
     return algosdk.bytesToBase64(bytes);
 }
 
 
+/**
+ * Get the current algod node status.
+ *
+ * @returns {Promise<Object>} Algod node status.
+ */
 export async function getStatus(){
 
     return await algod.status().do();
 }
 
 
+/**
+ * Encode an unsigned transaction.
+ *
+ * @param {Object} unsigned_transaction - Algorand unsigned transaction.
+ * @returns {Uint8Array} Encoded transaction bytes.
+ */
 export function encodeUnsignedTransaction(unsigned_transaction){
     
     return algosdk.encodeUnsignedTransaction(unsigned_transaction);
@@ -122,7 +136,6 @@ export function encodeUnsignedTransaction(unsigned_transaction){
 
 
 /**
- * Alias for `algosdk.decodeSignedTransaction()`.
  * Decode a signed transaction.
  *
  * @param {Uint8Array} signed_transaction - Signed transaction bytes.
@@ -148,7 +161,17 @@ export async function getTransactionById(transaction_id){
 }
 
 
-export function buildBoostrapTransaction(suggestedParams, user_address, sender_address, amount, note){
+/**
+ * Build a bootstrap payment transaction with a JSON note.
+ *
+ * @param {Object} suggestedParams - Algorand suggested parameters.
+ * @param {string} user_address - Sender address.
+ * @param {string} sender_address - Receiver address.
+ * @param {number} amount - Amount in microAlgos.
+ * @param {Object} note - JSON-serializable note payload.
+ * @returns {Object} Unsigned transaction.
+ */
+export function buildBootstrapTransaction(suggestedParams, user_address, sender_address, amount, note){
     
     const txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
             
@@ -164,13 +187,13 @@ export function buildBoostrapTransaction(suggestedParams, user_address, sender_a
 
 
 /**
- * Build and sign a payment transaction with a payload in the note field.
+ * Build and sign a payment transaction with a JSON payload in the note field.
  *
  * @param {Object} suggestedParams - Algorand suggested parameters.
- * @param {Object} sender - { addr, sk } object of sender.
- * @param {Object} receiver - { addr, sk } object of receiver.
- * @param {string} payload - Data to include in the note field.
- * @returns {Object} Signed transaction blob and transaction ID.
+ * @param {Object} sender - { addr, sk } sender account.
+ * @param {Object} receiver - { addr } receiver account.
+ * @param {Object} payload - JSON-serializable payload.
+ * @returns {{txn: Uint8Array, id: string}} Signed transaction and ID.
  */
 export function buildPayloadTransaction(suggestedParams, sender, receiver, payload){
     
@@ -242,14 +265,14 @@ export function buildCloseRevisionReceiverTransaction(suggestedParams, remainder
 
 
 /**
- * Build a generic payment transaction (can optionally close account if last chunk).
+ * Build a generic payment transaction.
  *
  * @param {Object} suggestedParams - Algorand suggested parameters.
- * @param {Object} sender - { addr, sk } of sender.
- * @param {Object} receiver - { addr, sk } of receiver.
+ * @param {Object} sender - { addr, sk } sender account.
+ * @param {Object} receiver - { addr, sk } receiver account.
  * @param {string} [note=""] - Optional note field.
- * @param {boolean} is_last_chunk - Whether to close account after this txn.
- * @returns {Object} Signed transaction blob and transaction ID.
+ * @param {boolean} is_last_chunk - Whether this transaction closes the receiver account.
+ * @returns {{txn: Uint8Array, id: string}} Signed transaction and ID.
  */
 export function buildTransaction(suggestedParams, sender, receiver, note = "", is_last_chunk){
 
@@ -270,13 +293,13 @@ export function buildTransaction(suggestedParams, sender, receiver, note = "", i
 /**
  * Build and sign a payment transaction.
  *
- * @param {Object} sender - { addr, sk } of sender.
- * @param {Object} receiver - { addr, sk } of receiver.
+ * @param {Object} sender - { addr, sk } sender account.
+ * @param {Object} receiver - { addr, sk } receiver account.
  * @param {string} note - Note field content.
  * @param {Object} suggestedParams - Algorand suggested parameters.
- * @param {number} amount - Amount to send in microAlgos.
- * @param {boolean} close_to_remainder - Whether to close the sender account after sending.
- * @returns {Object} Signed transaction blob and transaction ID.
+ * @param {number} amount - Amount in microAlgos.
+ * @param {boolean} close_to_remainder - Whether to close the receiver account and send remaining funds to sender.
+ * @returns {{txn: Uint8Array, id: string}} Signed transaction and ID.
  */
 export function makePaymentTransaction(sender, receiver, note, suggestedParams, amount, close_to_remainder){
 
@@ -315,10 +338,13 @@ export function makePaymentTransaction(sender, receiver, note, suggestedParams, 
 
 
 /**
- * Send a signed transaction to the network and wait for confirmation.
+ * Send a signed transaction and wait for confirmation.
  *
  * @param {Uint8Array} signed_txn - Signed transaction bytes.
- * @returns {Promise<Object>} Object containing signed transaction and result or error.
+ * @returns {Promise<
+ *   { signed_txn: Uint8Array, result: "executed" } |
+ *   { signed_txn: Uint8Array, error: Error }
+ * >}
  */
 export async function sendTransaction(signed_txn){
 
@@ -342,7 +368,7 @@ export async function sendTransaction(signed_txn){
 
 
 /**
- * Wait for a transaction to be confirmed or fail.
+ * Wait for a transaction to be confirmed or rejected.
  *
  * @param {Uint8Array} signed_transaction - Signed transaction bytes.
  * @returns {Promise<string>} "executed", pool error, or "transaction expired".

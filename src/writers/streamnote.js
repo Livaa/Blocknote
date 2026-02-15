@@ -54,6 +54,7 @@ export class Streamnote extends Blocknote {
         */
         this.encryption_salt = null;
 
+        this.streamed_bytes = 0;
         
         /**
         * Flag to request stop.
@@ -200,7 +201,7 @@ export class Streamnote extends Blocknote {
         this.result = {
 
             fees:       0,
-            start:      Date.now(),
+            start:      Date.now()
             //receiver:   this.receiver.addr.toString()
         };
 
@@ -240,10 +241,10 @@ export class Streamnote extends Blocknote {
         }            
 
         // Build & send payload transaction.
-        const suggested_params          = await Chain.getSuggestedParams();
-        const payload_transaction       = await Chain.buildPayloadTransaction(suggested_params, this.sender, this.receiver, this.payload);            
-        this.result.payload_transaction = payload_transaction.id;
-        const send_payload_transaction  = await Chain.sendTransaction(payload_transaction.txn);
+        const suggested_params              = await Chain.getSuggestedParams();
+        const payload_transaction           = await Chain.buildPayloadTransaction(suggested_params, this.sender, this.receiver, this.payload);            
+        this.result.payload_transaction_id  = payload_transaction.id;
+        const send_payload_transaction      = await Chain.sendTransaction(payload_transaction.txn);
 
         if(send_payload_transaction?.error){
 
@@ -262,20 +263,17 @@ export class Streamnote extends Blocknote {
     
     
     /**
-    * Append raw content to the stream. On the first call:
-    * - Initializes sender, receiver, payload, compression and encryption settings.
-    * - Creates and sends the payload transaction.
-    * - Starts processing the transaction queue.
+    * Append raw content to the stream.
     *
     * @param {string} raw_content - Raw content to append.
-    * @returns {Promise<void>}
-    * @throws {Error} If sender account is missing.
+    * @returns {void}
     */
-    async send(raw_content) {                
+    send(raw_content) {                
                
         if( !this.stop_requested ){
-                        
-            this.content += raw_content;        
+                       
+            this.content += raw_content;
+            this.streamed_bytes += raw_content.length;
         }                                                     
     }
  
@@ -473,10 +471,11 @@ export class Streamnote extends Blocknote {
         const close_to_remainder_transaction        = await Chain.buildTransaction(suggested_params, this.sender, this.receiver, "stop", true, false);
         const send_close_to_remainder_transaction   = await this.sendTransactions([close_to_remainder_transaction.txn]);      
                        
-        this.result.end         = Date.now();
-        this.result.duration    = this.result.end - this.result.start;
-        this.result.payload     = this.payload;                        
-        
+        this.result.end             = Date.now();
+        this.result.duration        = this.result.end - this.result.start;
+        this.result.streamed_bytes  = this.streamed_bytes;
+        this.result.payload         = this.payload;   
+                
         if(this.onFinish){
 
             this.onFinish(this.result);

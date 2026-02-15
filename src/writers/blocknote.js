@@ -613,7 +613,7 @@ export class Blocknote {
                     }
                     else{
                         
-                        console.log("retrying txn", txn_id, "counter:", counters[txn_id]);
+                        //console.log("retrying txn", txn_id, "counter:", counters[txn_id]);
                         
                         counters[txn_id]++;
                         
