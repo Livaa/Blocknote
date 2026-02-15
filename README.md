@@ -8,7 +8,6 @@ It lets developers and users **publish permanent, decentralized content** on-cha
 * 🔒 Protect content using password or AES encryption
 * 💸 Optimize costs with a smart compression
 
-\
 Blocknote uses a simple, extensible model based on a **payload transaction** that contains metadata about the content (such as type, compression, and encryption).&#x20;
 
 Whether you're building an archival tool, a decentralized publishing platform, or a creative inscription project, **Blocknote gives you the freedom to write to the chain simply and efficiently.**<br>
@@ -21,7 +20,7 @@ Whether you're building an archival tool, a decentralized publishing platform, o
 Bun is a modern alternative to Node.js, known for its superior performance, especially in compute-heavy tasks. Since Blocknote makes extensive use of cryptography and compression, we recommend using Bun for optimal speed and efficiency.\
 In fact, our current public dapp ([blocknote.space](https://blocknote.app)) is running on Bun.
 
-Blocknote.js remains **fully compatible** with both Bun and Node.js.
+Blocknote remains **fully compatible** with both Bun and Node.js.
 
 ## Install Bun
 
@@ -29,7 +28,6 @@ Blocknote.js remains **fully compatible** with both Bun and Node.js.
 
 Or visit <https://bun.com/docs/installation> for alternated installations.
 
-***
 
 ## Install package
 
@@ -60,3 +58,10 @@ Since Node.js now supports native handling of `.env` files, Blocknote is not usi
 or
 
 `bun your-app.js --env-file=.env`
+
+
+## Full documentation
+
+Read the full documentation to start using Blocknote <https://blocknote-js.gitbook.io/>
+
+
