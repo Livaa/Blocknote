@@ -100,7 +100,7 @@ export class Blocknote {
         
         /**
         * If true, disables calling any user-provided callbacks.
-        * @type {booleanean}
+        * @type {boolean}
         */       
         this.silent_callbacks = false;
         
@@ -112,7 +112,7 @@ export class Blocknote {
                 
         /**
         * If true, run in simulation mode without sending transactions.
-        * @type {booleanean}
+        * @type {boolean}
         */
         this.is_simulation = false;
         
@@ -275,7 +275,7 @@ export class Blocknote {
     /**
     * Enables or disables transaction simulation mode.
     * 
-    * @param {booleanean} is_simulation
+    * @param {boolean} is_simulation
     */
     simulate(is_simulation) {
         
