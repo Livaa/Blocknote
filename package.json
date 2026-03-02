@@ -1,6 +1,6 @@
 { 
     "name": "blocknote",
-    "version": "0.1.1",
+    "version": "0.1.3",
     "repository": {
         
         "type": "git",
@@ -27,10 +27,11 @@
         "algorand",
         "blockchain",
         "storage",
+        "onchain",
+        "on-chain",
         "file",
         "data",
-        "streaming",
-        "on-chain",
+        "streaming",        
         "decentralized",
         "web3"
     ],    
