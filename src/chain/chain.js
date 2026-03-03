@@ -61,7 +61,7 @@ export function getAddressFromMnemonic(mnemonic){
  */
 export function secretKeyToMnemonic(secret_key){
 
-    return algosdk.secretKeyToMnemonic(mnemonic);
+    return algosdk.secretKeyToMnemonic(secret_key);
 }
 
 
