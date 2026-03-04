@@ -41,14 +41,15 @@ Before using Blocknote, make sure to edit your .env file.\
 There is an .env.skeleton file into the github repo.
 
 ```dotenv
-PRIVATE_KEY_AES = "" # Use by the BlocknoteManager
-SQLITE_DATABASE_PATH = "./db/"  # Use by the BlocknoteManager
-ALGOD_URL = "https://testnet-api.algonode.cloud" 
-ALGOD_TOKEN = 
-ALGOD_PORT = 
-INDEXER_TOKEN = 
-INDEXER_PORT = 
-INDEXER_URL = "https://testnet-idx.algonode.cloud"
+PRIVATE_KEY_AES                         = "" # Use by BlocknoteManager to encrypt bootstrap txns
+SQLITE_DATABASE_PATH                    = "./db/"# Use by BlocknoteManager to store uploaded files
+APP_NAME                                = 'the name of your app'# Use by BlocknoteManager to identity bootstrap txns
+ALGOD_TOKEN                             =
+ALGOD_PORT                              =
+ALGOD_URL                               = "https://testnet-api.algonode.cloud"
+INDEXER_TOKEN                           =
+INDEXER_PORT                            =
+INDEXER_URL                             = "https://testnet-idx.algonode.cloud"
 ```
 
 Since Node.js now supports native handling of `.env` files, Blocknote is not using the `dotenv` library. To ensure proper functionality, run Node.js with the appropriate argument.
